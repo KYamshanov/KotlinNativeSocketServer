@@ -2,6 +2,9 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.runBlocking
 import platform.posix.WSAGetLastError
 import platform.posix.WSAStartup
@@ -16,16 +19,34 @@ fun main(): Unit = runBlocking {
                     throw Exception("Ошибка при настройке WSA ${WSAGetLastError()}")
             }
         }
-        var server: ServerSocket? = null
-        try {
-            launchServer(8081).also {
-                server = it
-                it.waitClients(ServerHandlerImpl(it))
+        launch(newSingleThreadContext("TCP server")) {
+            var server: ServerSocket? = null
+            try {
+                launchServer(8081).also {
+                    server = it
+                    it.waitClients(ServerHandlerImpl(it))
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            } finally {
+                server?.close()
             }
-        } catch (e: Throwable) {
-            e.printStackTrace()
-        } finally {
-            server?.close()
+        }
+        launch(newSingleThreadContext("UDP server")) {
+            var server: UdpServer? = null
+            try {
+                UdpServer(8080).also {
+                    server = it
+                    it.launch()
+                    it.receiveFrom().collect {
+                        server?.send(it.bytes, it.address)
+                    }
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            } finally {
+                server?.close()
+            }
         }
         system("PAUSE")
     }
