@@ -18,10 +18,9 @@ fun main(): Unit = runBlocking {
         }
         var server: ServerSocket? = null
         try {
-            launchServer(8081).apply {
-                waitClients()
-            }.also {
+            launchServer(8081).also {
                 server = it
+                it.waitClients(ServerHandlerImpl(it))
             }
         } catch (e: Throwable) {
             e.printStackTrace()

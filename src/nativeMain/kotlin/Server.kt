@@ -1,8 +1,7 @@
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.*
+import packets.ByteHandlerFactory
 import packets.Packet
 import packets.PacketFactory
 import platform.posix.*
@@ -14,42 +13,91 @@ fun launchServer(serverPort: Int): ServerSocket = ServerSocket().apply {
 }
 
 @ExperimentalCoroutinesApi
-suspend fun ServerSocket.waitClients(packetHandler: PacketHandler) = coroutineScope {
-    launch {
-        while (true)
-            this@waitClients.accept().let { client ->
-                println("T1")
-                launch(newSingleThreadContext("Client receive")) {
-                    client?.startReceiving()?.collect {
-                        packetHandler.handle(client, it)
-                    }
+suspend fun ServerSocket.waitClients(packetHandler: ServerHandler) = coroutineScope {
+    val packetFlow = MutableSharedFlow<Pair<ClientSocket, Packet>>(replay = 1)
+    val connectedUsersFlow = MutableSharedFlow<ClientSocket>(replay = 1)
+    val disconnectedUsersFlow = MutableSharedFlow<ClientSocket>(replay = 1)
+
+    launch(newSingleThreadContext("accept thread")) {
+        while (true) {
+            this@waitClients.accept()?.let { client ->
+                connectedUsersFlow.emit(client)
+                launch(newSingleThreadContext("Receiving thread")) {
+                    client.startReceiving()
+                        .catch {
+                            it.printStackTrace()
+                            currentCoroutineContext().cancel()
+                            disconnectedUsersFlow.emit(client)
+                        }.collect { packet ->
+                            packetFlow.emit(client to packet)
+                        }
                 }
             }
+        }
+    }
+    launch {
+        packetFlow.collect {
+            packetHandler.handle(it.first, it.second)
+        }
+    }
+    launch {
+        disconnectedUsersFlow.collect {
+            packetHandler.disconnectClient(it.clientId)
+        }
+    }
+    launch {
+        connectedUsersFlow.collect {
+            packetHandler.connectClient(it)
+        }
     }
 }
 
 /**
  * @property socket Сокет клиента
- * @property available Доступность клиента
+ * @property packetFactory Фабрика пакетов
+ * @property byteHandlerFactory Фабрика обработчика байтов
  */
 data class ClientSocket(
     val socket: SOCKET,
-    var available: Boolean = true,
-    private val packetFactory: PacketFactory
+    private val packetFactory: PacketFactory,
+    private val byteHandlerFactory: ByteHandlerFactory
 ) {
 
-    suspend fun startReceiving(): Flow<Packet> = withContext(Dispatchers.Default) {
-        flow {
-            var chached = ByteArray(0)
-            while (true) {
-                chached = chached.putByteArray(receive(1024))
-                if (chached.isFullMessage())
-                    emit(packetFactory.getPacketFromBytes(chached))
-            }
-        }
+    /**
+     * Id клиента
+     */
+    val clientId = rand()
+    private val available: Boolean = true
+
+
+    init {
+        println("Создан клиент $clientId")
     }
 
+    fun startReceiving(): Flow<Packet> = flow {
+        val byteHandler = byteHandlerFactory.getNewInstance()
+        while (true) {
+            if (!available) return@flow
+            val messages = byteHandler.handleReceived(receive(1024))
+            for (message in messages)
+                packetFactory.producePacket(message)?.let {
+                    emit(it)
+                }
+        }
+    }.onEach {
+        println("От Клиента $clientId был получен пакет: ${it::class.simpleName} $it")
+    }
 
+    /**
+     * Отправить пакет
+     */
+    fun send(packet: Packet) {
+        println("Клиенту $clientId был отправлен пакет $packet")
+        val byteHandler = byteHandlerFactory.getNewInstance()
+        packetFactory.serializePacket(packet)?.let {
+            send(byteHandler.prepareBytesToSend(it))
+        }
+    }
 
     /**
      *
@@ -66,7 +114,9 @@ data class ClientSocket(
             for (index in buffer.indices)
                 array[index] = buffer[index]
 
-            send(this@ClientSocket.socket, array, buffer.size, flags)
+            val sent = send(this@ClientSocket.socket, array, buffer.size, flags)
+            println("Клиенту $clientId были отправлены $sent байт из ${buffer.contentToString()}")
+            sent
         }
 
     /**
@@ -81,20 +131,13 @@ data class ClientSocket(
             val length = recv(socket, array, bufferSize, flags)
             if (length == 0)
                 throw Exception("Соединение с клиентом пропало")
-            array.readBytes(length)
+            val byteArray = array.readBytes(length)
+            println("От клиента $clientId были получены байты($length) ${byteArray.contentToString()}")
+            byteArray
         }
 
     private fun ByteArray.isFullMessage(lastByte: Byte = 10): Boolean =
         this.contains(lastByte)
-
-    private fun ByteArray.putByteArray(appendedByteArray: ByteArray): ByteArray {
-        if (this.isEmpty())
-            return appendedByteArray
-        return mutableListOf<Byte>().apply {
-            addAll(this@putByteArray.toTypedArray())
-            addAll(appendedByteArray.toTypedArray())
-        }.toByteArray()
-    }
 }
 
 /**
@@ -105,11 +148,6 @@ class ServerSocket() {
 
     var serverSocket: SOCKET? = null
         private set
-
-    private val _activeClients = mutableListOf<ClientSocket>()
-    val activeClients: List<ClientSocket>
-        get() = _activeClients.toList()
-
 
     /**
      * Создание сокета
@@ -181,14 +219,10 @@ class ServerSocket() {
                 println("Ошибка при подключении клиента  ${WSAGetLastError()}")
                 false
             } else {
-                println("клиент успешно подключился")
                 true
             }
         }?.let {
-            println("T5")
-            ClientSocket(it)
-        }?.also {
-            _activeClients.add(it)
+            ClientSocket(it, PacketFactory.getInstance(), ByteHandlerFactory.getInstance())
         }
     }
 }
