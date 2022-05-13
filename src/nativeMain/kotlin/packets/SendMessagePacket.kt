@@ -1,9 +1,10 @@
 package packets
 
 class SendMessagePacket(
+    packetMetaData: PacketMetaData? = null,
     val clientId: Int,
     val message: String
-) : Packet {
+) : AbstractPacket(packetMetaData) {
 
     override fun toBytes(): ByteArray =
         "$clientId:$message".encodeToByteArray()
@@ -17,7 +18,7 @@ class SendMessagePacket(
         fun fromBytes(byteArray: ByteArray): SendMessagePacket =
             byteArray.decodeToString().let {
                 val parts = it.split(":", limit = 2)
-                SendMessagePacket(parts[0].toInt(), parts[1])
+                SendMessagePacket(clientId = parts[0].toInt(), message = parts[1])
             }
     }
 }

@@ -1,9 +1,9 @@
 package packets
 
-import ClientSocket
-
 class GetInfoPacketRq(
-) : Packet {
+    packetData: PacketMetaData? = null
+    ) : AbstractPacket(packetData) {
+
 
     override fun toBytes(): ByteArray = ByteArray(0)
 

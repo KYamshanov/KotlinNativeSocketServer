@@ -4,9 +4,10 @@ import kotlinx.coroutines.flow.*
 import packets.ByteHandlerFactory
 import packets.Packet
 import packets.PacketFactory
+import packets.ServerData
 import platform.posix.*
 
-fun launchServer(serverPort: Int): ServerSocket = ServerSocket().apply {
+fun launchServer(serverPort: Int, serverData: ServerData): ServerSocket = ServerSocket(serverData).apply {
     create()
     bind(serverPort)
     listen()
@@ -25,7 +26,6 @@ suspend fun ServerSocket.waitClients(packetHandler: ServerHandler) = coroutineSc
                 launch(newSingleThreadContext("Receiving thread")) {
                     client.startReceiving()
                         .catch {
-                            it.printStackTrace()
                             currentCoroutineContext().cancel()
                             disconnectedUsersFlow.emit(client)
                         }.collect { packet ->
@@ -144,7 +144,7 @@ data class ClientSocket(
  * Создать сокет
  * @property port Порт на котором будет работать
  */
-class ServerSocket() {
+class ServerSocket(val serverData: ServerData) {
 
     var serverSocket: SOCKET? = null
         private set

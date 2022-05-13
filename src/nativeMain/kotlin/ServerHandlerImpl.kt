@@ -22,16 +22,17 @@ class ServerHandlerImpl(
         is SendMessagePacket -> {
             packet.handleSendMessagePacket(clientSocket)
         }
-        is GetInfoPacketRq -> clientSocket.send(GetInfoPacketRs(clientSocket.clientId))
-        is GetActiveUsersPacketRq -> clientSocket.send(GetActiveUsersPacketRs(activeClients.keys.toList()))
+        is GetInfoPacketRq -> clientSocket.send(GetInfoPacketRs(clientId = clientSocket.clientId))
+        is GetActiveUsersPacketRq -> clientSocket.send(GetActiveUsersPacketRs(users = activeClients.keys.toList()))
+        is GetServerDataPacketRq -> clientSocket.send(GetServerDataPacketRs(serverSocket.serverData))
         else -> {}
     }
 
     private fun SendMessagePacket.handleSendMessagePacket(sender: ClientSocket) {
         activeClients[this.clientId]?.send(
             SendMessagePacket(
-                sender.clientId,
-                this.message
+                clientId = sender.clientId,
+                message = this.message
             )
         ) ?: run {
             println("При отправке SendMessagePacket не найден получатель ${this.clientId}")

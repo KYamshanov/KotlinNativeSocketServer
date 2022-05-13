@@ -1,8 +1,9 @@
 package packets
 
 class GetActiveUsersPacketRs(
-    private val users: List<Int>
-) : Packet {
+    packetData: PacketMetaData? = null,
+    val users: List<Int>
+) : AbstractPacket(packetData) {
 
     override fun toBytes(): ByteArray =
         users.joinToString(":").encodeToByteArray()
@@ -10,6 +11,6 @@ class GetActiveUsersPacketRs(
     companion object {
 
         fun fromBytes(byteArray: ByteArray): GetActiveUsersPacketRs =
-            GetActiveUsersPacketRs(byteArray.decodeToString().split(":").map { it.toInt() })
+            GetActiveUsersPacketRs(users = byteArray.decodeToString().split(":").map { it.toInt() })
     }
 }

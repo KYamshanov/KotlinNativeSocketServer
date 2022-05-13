@@ -1,7 +1,7 @@
 package packets
 
 
-class GetActiveUsersPacketRq(
+class GetServerDataPacketRq(
     packetData: PacketMetaData? = null
 ) : AbstractPacket(packetData) {
 
@@ -9,8 +9,8 @@ class GetActiveUsersPacketRq(
 
     companion object {
 
-        fun fromBytes(): GetActiveUsersPacketRq =
-            GetActiveUsersPacketRq()
+        fun fromBytes(): GetServerDataPacketRq =
+            GetServerDataPacketRq()
 
     }
 

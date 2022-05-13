@@ -1,8 +1,9 @@
 package packets
 
 class GetInfoPacketRs(
-    private val clientId: Int
-) : Packet {
+    packetMetaData: PacketMetaData? = null,
+    val clientId: Int
+) : AbstractPacket(packetMetaData) {
 
     override fun toBytes(): ByteArray =
         "clientId:${clientId}".encodeToByteArray()
@@ -10,6 +11,6 @@ class GetInfoPacketRs(
     companion object {
 
         fun fromBytes(byteArray: ByteArray): GetInfoPacketRs =
-            GetInfoPacketRs(byteArray.decodeToString().split(":")[1].toInt())
+            GetInfoPacketRs(clientId = byteArray.decodeToString().split(":")[1].toInt())
     }
 }

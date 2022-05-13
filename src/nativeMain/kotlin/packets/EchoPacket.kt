@@ -1,8 +1,9 @@
 package packets
 
 class EchoPacket(
-    private val text: String
-) : Packet {
+    packetData: PacketMetaData? = null,
+    val text: String
+) : AbstractPacket(packetData) {
 
     override fun toBytes(): ByteArray =
         text.encodeToByteArray()
@@ -14,7 +15,7 @@ class EchoPacket(
     companion object {
 
         fun fromBytes(byteArray: ByteArray): EchoPacket =
-            EchoPacket(byteArray.decodeToString())
+            EchoPacket(text = byteArray.decodeToString())
 
     }
 }
