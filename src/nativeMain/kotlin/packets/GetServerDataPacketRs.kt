@@ -3,17 +3,19 @@ package packets
 
 class GetServerDataPacketRs(
     val serverData: ServerData,
+    val status: String,
     packetData: PacketMetaData? = null
 ) : AbstractPacket(packetData) {
 
-    override fun toBytes(): ByteArray = "${serverData.serverName}:${serverData.maxPlayers}".encodeToByteArray()
+    override fun toBytes(): ByteArray =
+        "${serverData.serverName}:${serverData.maxPlayers}:${serverData}".encodeToByteArray()
 
     companion object {
 
         fun fromBytes(byteArray: ByteArray) =
-            GetServerDataPacketRs(byteArray.decodeToString().split(":", limit = 2).let {
-                ServerData(it[0], it[1].toInt())
-            })
+            byteArray.decodeToString().split(":", limit = 3).let {
+                GetServerDataPacketRs(ServerData(it[0], it[1].toInt()), it[2])
+            }
     }
 
 

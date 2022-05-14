@@ -30,6 +30,9 @@ private class PacketFactoryImpl : PacketFactory {
             getProducePacketData(5.toByte()) { GetServerDataPacketRs.fromBytes(it) },
             getProducePacketData(6.toByte()) { GetServerDataPacketRq.fromBytes() },
             getProducePacketData(7.toByte()) { SendMessagePacket.fromBytes(it) },
+            getProducePacketData(8.toByte()) { BroadcastMessagePacket.fromBytes(it, this) },
+            getProducePacketData(9.toByte()) { JoinToGamePacket.fromBytes(it) },
+            getProducePacketData(10.toByte()) { SelectItemPacket.fromBytes(it) }
         )
 
     override fun producePacket(byteArray: ByteArray): Packet? =

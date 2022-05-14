@@ -2,6 +2,7 @@ import kotlinx.cinterop.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import platform.posix.*
+import platform.windows.CHARVar
 
 data class UDPReceivedMessage(
     val bytes: ByteArray,
@@ -29,7 +30,17 @@ class UdpServer(
                 array[index] = buffer[index]
 
             val sent = socket?.let {
-                sendto(it, array, buffer.size, flags, recipient.ptr.reinterpret(), sizeOf<sockaddr_in>().convert())
+                sendto(
+                    it,
+                    array,
+                    buffer.size,
+                    flags,
+                    recipient.ptr.reinterpret(),
+                    sizeOf<sockaddr_in>().convert()
+                ).also { count ->
+                    if (count == -1)
+                        println(" Ошибка: ${WSAGetLastError()}")
+                }
             } ?: throw Exception("Сокет не создан")
             println("Клиенту UDP были отправлены $sent байт из ${buffer.contentToString()}")
             sent
@@ -40,7 +51,7 @@ class UdpServer(
             while (true) {
                 memScoped {
                     val array = allocArray<ByteVar>(bufferSize)
-                    val socketAddress = alloc<sockaddr_in>()
+                    val socketAddress = nativeHeap.alloc<sockaddr_in>()
                     val length = recvfrom(
                         sock, array,
                         bufferSize, flags,
@@ -72,8 +83,14 @@ class UdpServer(
             println("Сокет UDP успешно создан")
             true
         }?.also {
+            setsockopt(it, SOL_SOCKET, SO_BROADCAST, "1", sizeOf<CHARVar>().convert()).let { opt ->
+                if (opt < 0)
+                    throw Exception("ОШибка настройки бродкаста")
+            }
+
             socket = it
         }
+
     }
 
     private fun bind(): Unit =
@@ -81,6 +98,7 @@ class UdpServer(
             alloc<sockaddr_in>().apply { //создаёт переменную типа [sockaddr_in]
                 sin_family = AF_INET.convert()
                 sin_port = posix_htons(serverPort.toShort()).convert()
+                sin_addr.S_un.S_addr = ADDR_ANY
             }.let {
                 socket?.let { socket ->
                     bind(socket, it.ptr.reinterpret(), sockaddr_in.size.convert())

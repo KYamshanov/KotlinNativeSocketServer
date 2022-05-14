@@ -1,3 +1,5 @@
+import game.Game
+import game.produceGame
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
@@ -10,14 +12,19 @@ import packets.*
 import platform.posix.WSAGetLastError
 import platform.posix.WSAStartup
 import platform.posix.system
+import kotlin.native.concurrent.AtomicReference
+import kotlin.native.concurrent.FreezableAtomicReference
+import kotlin.native.concurrent.freeze
 
 @ExperimentalCoroutinesApi
 fun main(): Unit = runBlocking {
 
     println("Введите данные о сервере в виде: Название_сервера:Максимальное_количество_игроков")
-    val line = /*readLine()?*/"Сервер-1:15".split(":", limit = 2)
+    val line = /*readLine()*/"TEST:2"?.split(":", limit = 2)!!
 
     val serverData = ServerData(line[0], line[1].toInt())
+
+    val refGame = AtomicReference<Game?>(null)
 
     memScoped {
         alloc<platform.posix.WSAData>() {
@@ -31,7 +38,9 @@ fun main(): Unit = runBlocking {
             try {
                 launchServer(8081, serverData).also {
                     server = it
-                    it.waitClients(ServerHandlerImpl(it))
+                    val game = produceGame(it, serverData.maxPlayers)
+                    //refGame.value = game.freeze()
+                    it.waitClients(ServerHandlerImpl(it, game))
                 }
             } catch (e: Throwable) {
                 e.printStackTrace()
@@ -53,7 +62,7 @@ fun main(): Unit = runBlocking {
                         }.forEach { packet ->
                             when (packet) {
                                 is GetServerDataPacketRq -> packetFactory.serializePacket(
-                                    GetServerDataPacketRs(serverData)
+                                    GetServerDataPacketRs(serverData, refGame.value?.getStatus() ?: "Игра не запущена")
                                 )?.let { bytes -> byteHandler.prepareBytesToSend(bytes) }?.also { bytes ->
                                     server?.send(bytes, message.address)
                                 }
@@ -69,4 +78,6 @@ fun main(): Unit = runBlocking {
         }
         system("PAUSE")
     }
+
+
 }

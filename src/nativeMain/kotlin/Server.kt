@@ -1,11 +1,9 @@
 import kotlinx.cinterop.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import packets.ByteHandlerFactory
-import packets.Packet
-import packets.PacketFactory
-import packets.ServerData
+import packets.*
 import platform.posix.*
+import kotlin.native.concurrent.freeze
 
 fun launchServer(serverPort: Int, serverData: ServerData): ServerSocket = ServerSocket(serverData).apply {
     create()

@@ -1,7 +1,10 @@
+import game.Game
+import game.produceCraftPlayer
 import packets.*
 
 class ServerHandlerImpl(
-    private val serverSocket: ServerSocket
+    private val serverSocket: ServerSocket,
+    private val game: Game
 ) : ServerHandler {
 
     private val activeClients = mutableMapOf<Int, ClientSocket>()
@@ -24,7 +27,12 @@ class ServerHandlerImpl(
         }
         is GetInfoPacketRq -> clientSocket.send(GetInfoPacketRs(clientId = clientSocket.clientId))
         is GetActiveUsersPacketRq -> clientSocket.send(GetActiveUsersPacketRs(users = activeClients.keys.toList()))
-        is GetServerDataPacketRq -> clientSocket.send(GetServerDataPacketRs(serverSocket.serverData))
+        is GetServerDataPacketRq -> clientSocket.send(GetServerDataPacketRs(serverSocket.serverData,game.getStatus()))
+        is BroadcastMessagePacket -> activeClients.values.filter { it.clientId != clientSocket.clientId }.forEach {
+            it.send(packet.message)
+        }
+        is JoinToGamePacket -> game.joinPlayer(produceCraftPlayer(clientSocket,packet.playerName))
+        is SelectItemPacket -> game.selectItem(clientSocket.clientId, packet.gameItem)
         else -> {}
     }
 
